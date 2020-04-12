@@ -5,7 +5,7 @@ message HostId {
     required uint32 host_id = 1;
     required string host_ip = 2; //ip
     required uint32 host_port = 3; //port
-
+    required uint32 server_port = 4; //业务端口
 }
 
 message PaxosGroup {
@@ -16,5 +16,4 @@ message PaxosGroup {
 
 message ServerConfig {
     repeated PaxosGroup groups = 1;
-    required uint32 server_port = 2;//业务端口
 };

@@ -25,15 +25,16 @@ void testConfig() {
     hostId->set_host_id(1);
     hostId->set_host_ip("127.0.0.1");
     hostId->set_host_port(8901);
+    hostId->set_server_port(9901);
 
     hostId = paxosGroup->add_hostids();
     hostId->set_host_id(2);
     hostId->set_host_ip("127.0.0.1");
     hostId->set_host_port(8902);
+    hostId->set_server_port(9902);
 
     paxosGroup->set_storage_dir("data1");
 
-    serverConfig.set_server_port(9901);
 
     string jsonStr  = tpc::Core::Utils::Msg2JsonStr(serverConfig);
     LOG_COUT << LVAR(jsonStr) << LOG_ENDL;
@@ -59,8 +60,20 @@ int main(int argc, char **argv) {
         LOG_COUT << LVAR(ret) << LOG_ENDL_ERR;
         return -3;
     }
-
-    int serverSock = tpc::Core::Network::CreateTcpSocket(serverConfig.server_port(), "*", true);
+    uint32_t server_port = 0;
+    for (int j = 0; j < serverConfig.groups_size(); ++j) {
+        for (int i = 0; i < serverConfig.groups(j).hostids_size(); ++i) {
+            if (host_id == serverConfig.groups(j).hostids(i).host_id()) {
+                server_port = serverConfig.groups(j).hostids(i).server_port();
+                break;
+            }
+        }
+        if (server_port > 0) {
+            break;
+        }
+    }
+    LOG_COUT << LVAR(server_port) << LOG_ENDL;
+    int serverSock = tpc::Core::Network::CreateTcpSocket(server_port, "*", true);
     if (serverSock < 0) {
         LOG_COUT << LVAR(serverSock) << LOG_ENDL_ERR;
         return serverSock;

@@ -3,27 +3,69 @@
 //
 #include <stack>
 #include <netinet/in.h>
+#include <sys/time.h>
 #include "MultiPaxos.h"
 #include "Utils.h"
 #include "Network.h"
 #include "Log.h"
+#include "Storage_mem.h"
 
 using namespace std;
 
-int MultiPaxos::syncPropose(void **pPaxosData) {
+int MultiPaxos::syncPropose(void **pPaxosData, Proto::Network::CliReq *cliReq, uint64_t &outLogId) {
     PaxosProposeHandler *paxosProposeHandler;
     if (*pPaxosData == NULL) {
         *pPaxosData = new PaxosProposeHandler;
         paxosProposeHandler = reinterpret_cast<PaxosProposeHandler *>(*pPaxosData);
         paxosProposeHandler->group = groupConfig;
+        paxosProposeHandler->groupVersion = groupVersion;
         paxosProposeHandler->updateHostInfo();
     }
     paxosProposeHandler = reinterpret_cast<PaxosProposeHandler *>(*pPaxosData);
     if (paxosProposeHandler->groupVersion != groupVersion) {
         paxosProposeHandler->group = groupConfig;
+        paxosProposeHandler->groupVersion = groupVersion;
         paxosProposeHandler->updateHostInfo();
     }
-    int ret;
+
+    //get new log
+    outLogId = storage->atomicAddOneMaxLogId();
+    Proto::Storage::Log logData;
+    int ret = storage->getLog(outLogId, logData);
+    if (ret == -1) {
+        logData.set_type(cliReq->request_type());
+        logData.set_log_index(outLogId);
+        uint64_t proposeId = newProposeId();
+        logData.set_proposal_id(proposeId);
+        logData.clear_log_entry();
+        Proto::Storage::LogEntry *logEntry = logData.add_log_entry();
+        logEntry->set_action(1);
+        logEntry->set_key(cliReq->key());
+        logEntry->set_value(cliReq->value());
+    } else {
+        LOG_COUT << "logData has write " << LVAR(outLogId) <<  LVAR(logData.proposal_id()) << LOG_ENDL;
+        return -2;
+    }
+
+    // todo:Prepare msg
+    //
+
+    // AcceptReq msg
+    Proto::Network::Msg reqMsg;
+    reqMsg.set_msg_type(Proto::Network::MsgType::MSG_Type_Prepare_Request);
+    Proto::Network::AcceptReq *acceptRequest = reqMsg.mutable_accept_request();
+    acceptRequest->set_group_id(groupid);
+    acceptRequest->set_log_id(outLogId);
+    acceptRequest->set_proposal_id(logData.proposal_id());
+//        acceptRequest->set_from_node()
+    acceptRequest->set_accept_value(cliReq->key() + ":" + cliReq->value());
+    
+    struct pollfd fds[paxosProposeHandler->group.hostids_size()];
+    for (int j = 0; j < paxosProposeHandler->group.hostids_size(); ++j) {
+        fds[j].fd = -1;
+    }
+    //send msg
+    int nSendCount = 0;
     for (int i = 0; i < paxosProposeHandler->group.hostids_size(); ++i) {
         if (paxosProposeHandler->group.hostids(i).host_id() == host_id) {
             //skip self
@@ -38,22 +80,58 @@ int MultiPaxos::syncPropose(void **pPaxosData) {
                 continue;
             }
         }
-        ret = tpc::Core::Network::SendBuff(it->second.fd, "abcd", 4);
+
+        ret = tpc::Core::Network::SendMsg(it->second.fd, reqMsg);
         if (ret != 0) {
             LOG_COUT << "SendBuff" << LVAR(ret) << LOG_ENDL_ERR;
             close(it->second.fd);
             it->second.fd = -1;
             continue;
         }
-
-        string retStr = tpc::Core::Network::ReadBuff(it->second.fd, 100);
-        if (retStr.length() == 0) {
-            LOG_COUT << "ReadBuff err " << LVAR(it->second.ip) << LVAR(it->second.port) << LOG_ENDL_ERR;
-            close(it->second.fd);
-            it->second.fd = -1;
-        }
-
+        fds[i].fd = it->second.fd;
+        fds[i].events = POLLIN|POLLERR|POLLHUP;
+        fds[i].revents = 0;
+        nSendCount += 1;
     }
+    LOG_COUT << LVAR(nSendCount) << LOG_ENDL;
+    int nSuccCount = 0;
+    //写本地日志
+    ret = storage->setLog(outLogId, logData);
+    assert(ret == 0);
+    nSuccCount += 1;
+    // read msg
+    while (1) {
+        ret = poll(fds, paxosProposeHandler->group.hostids_size(), 1000);
+        if (ret == 0) {
+            continue;
+        }
+        for (int i = 0; i < paxosProposeHandler->group.hostids_size(); ++i) {
+            if (fds[i].fd > 0 && fds[i].revents) {
+                Proto::Network::Msg resMsg;
+                ret = tpc::Core::Network::ReadOneMsg(fds[i].fd, resMsg);
+                if (ret < 0) {
+                    auto it = paxosProposeHandler->mapHostInfo.find(paxosProposeHandler->group.hostids(i).host_id());
+                    close(it->second.fd);
+                    it->second.fd = -1;
+                    LOG_COUT << "read msg err " << LVAR(ret) << LVAR(it->second.ip) << LVAR(it->second.port) << LOG_ENDL_ERR;
+                    continue;
+                }
+                Proto::Network::AcceptRes *acceptResponse = resMsg.mutable_accept_response();
+                if (acceptResponse->result() != 0) {
+                    LOG_COUT << "acceptResponse " << LVAR(acceptResponse->result()) << LVAR(acceptResponse->ret_proposal_id())
+                        << LVAR(acceptResponse->accept_value()) << LOG_ENDL;
+                } else {
+                    nSuccCount += 1;
+                }
+            }
+        }
+        if (nSuccCount > (paxosProposeHandler->group.hostids_size())/2) {
+            LOG_COUT << LVAR(nSuccCount) << LOG_ENDL;
+            //todo:需要处理其他的返回
+            break;
+        }
+    }
+
     return 0;
 }
 
@@ -77,10 +155,22 @@ static void *threadFun(void *args) {
     ((MultiPaxos*)threadArgs->server)->mainThreadFun(threadArgs->threadIndex);
 }
 
+static void *threadFun1(void *args) {
+    ThreadArgs *threadArgs = static_cast<ThreadArgs *>(args);
+    ((MultiPaxos*)threadArgs->server)->adminWorkerThread();
+}
+
 int MultiPaxos::start() {
+    //init storage
+    storage = new Storage_mem(groupConfig.storage_dir());
+
+    //test log
+    Proto::Storage::Log logData;
+    storage->setLog(0, logData);
+
     int nCpu = tpc::Core::Utils::GetCpuCount();
     int nThreadCount = nCpu*2;
-    pthread_t pthreadArr[nThreadCount];
+    pthread_t pthreadArr[nThreadCount+1];
 //    ThreadArgs threadArgs[nThreadCount];
     g_readwrite_task = new stack<task_t*>[nThreadCount];
 
@@ -117,6 +207,11 @@ int MultiPaxos::start() {
         int ret = pthread_create(&pthreadArr[i], NULL, threadFun, (void *)threadArgs);
         assert(ret == 0);
     }
+
+    ThreadArgs *threadArgs = new ThreadArgs;
+    threadArgs->server = this;
+    ret = pthread_create(&pthreadArr[nThreadCount], NULL, threadFun1, threadArgs);
+    assert(ret == 0);
 }
 
 static void *__WorkerCoroutine(void *args) {
@@ -182,15 +277,61 @@ void MultiPaxos::workerCoroutine(task_t *pTask) {
             if (ret == 0) {
                 continue;
             }
-            ret = read(fd, buf, sizeof(buf));
+            LOG_COUT << "start read msg" << LOG_ENDL;
+            Proto::Network::Msg reqMsg;
+            ret = tpc::Core::Network::ReadOneMsg(fd, reqMsg);
             if (ret <= 0) {
-//                LOG_COUT << "read err " << LVAR(ret) << LOG_ENDL_ERR;
+                LOG_COUT << "read err " << LVAR(ret) << LOG_ENDL_ERR;
                 break;
             }
+            LOG_COUT << "start read msg ok" << LVAR(ret) << LOG_ENDL;
+            Proto::Network::Msg resMsg;
+            resMsg.set_msg_type(Proto::Network::MsgType::MSG_Type_Accept_Response);
+            Proto::Network::AcceptRes *acceptRes = resMsg.mutable_accept_response();
 
-//            LOG_COUT << LVAR(buf) << LOG_ENDL;
-            ret = write( fd, retStr.c_str(), retStr.length());
-            if (ret != retStr.length()) {
+            //处理逻辑
+            Proto::Network::AcceptReq *acceptReq = reqMsg.mutable_accept_request();
+            if (acceptReq->group_id() != groupid) {
+                acceptRes->set_result(3);
+                acceptRes->set_err_msg("groupid err");
+            } else {
+                Proto::Storage::Log logData;
+                ret = storage->getLog(acceptReq->log_id(), logData);
+                if (ret == 0) {
+                    if (logData.proposal_id() > acceptReq->proposal_id()) {
+                        acceptRes->set_result(1);
+                        acceptRes->set_err_msg("proposal_id");
+                        acceptRes->set_ret_proposal_id(logData.proposal_id());
+                    } else {
+                        //写磁盘
+                        logData.set_log_index(acceptReq->log_id());
+                        logData.set_proposal_id(acceptReq->proposal_id());
+                        logData.set_type(0);
+                        logData.clear_log_entry();
+                        Proto::Storage::LogEntry *logEntry = logData.add_log_entry();
+                        logEntry->set_action(1);
+                        logEntry->set_key("log");
+                        logEntry->set_value(acceptReq->accept_value());
+                        storage->setLog(acceptReq->log_id(), logData);
+                    }
+                } else {
+                    //写磁盘
+                    logData.set_log_index(acceptReq->log_id());
+                    logData.set_proposal_id(acceptReq->proposal_id());
+                    logData.set_type(0);
+                    logData.clear_log_entry();
+                    Proto::Storage::LogEntry *logEntry = logData.add_log_entry();
+                    logEntry->set_action(1);
+                    logEntry->set_key("log");
+                    logEntry->set_value(acceptReq->accept_value());
+                    storage->setLog(acceptReq->log_id(), logData);
+                }
+            }
+
+            ret = tpc::Core::Network::SendMsg(fd, resMsg);
+            LOG_COUT << "SendMsg ok" << LVAR(ret) << LOG_ENDL;
+            if (ret != 0) {
+                LOG_COUT << "SendMsg" << LVAR(ret) << LOG_ENDL_ERR;
                 break;
             }
         }
@@ -243,6 +384,18 @@ void MultiPaxos::acceptCoroutine(task_t *pTask) {
         co_resume(co->co);
     }
     return ;
+}
+
+void MultiPaxos::adminWorkerThread() {
+
+}
+
+uint64_t MultiPaxos::newProposeId() {
+    //todo:需要优化...
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    uint64_t ret = (tv.tv_sec*1000000 + tv.tv_usec)*100 + host_id;
+    return ret;
 }
 
 int PaxosProposeHandler::updateHostInfo() {

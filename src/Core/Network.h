@@ -6,9 +6,14 @@
 #define PROJECT_NETWORK_H
 
 #include <string>
+#include <rpc.pb.h>
+
 using namespace std;
 
 namespace tpc::Core {
+    struct Msghead {
+        unsigned int msgLen;
+    };
     class Network {
     public:
         static int SetNonBlock(int iSock);
@@ -22,6 +27,13 @@ namespace tpc::Core {
         static int SendBuff(int fd, char *buff, size_t len);
 
         static int Connect(string host, int port);
+
+        static int SendMsg(int fd, Proto::Network::Msg &msg);
+
+        //·µ»ØmsgType, Ê§°Ü·µ»Ø<0
+        static int ReadOneMsg(int fd, Proto::Network::Msg &msg);
+
+
     };
 }
 

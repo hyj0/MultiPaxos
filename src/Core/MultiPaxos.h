@@ -8,7 +8,10 @@
 #include <string>
 #include <stack>
 #include <config.pb.h>
+#include <rpc.pb.h>
 #include "Utils.h"
+#include "Storage.h"
+
 using namespace std;
 
 class MultiPaxos {
@@ -17,17 +20,17 @@ private:
     int host_id = -1;
     Proto::Config::PaxosGroup groupConfig;
     int groupVersion;//版本号
-    int groupid;
+    uint32_t groupid;
     int state = 1;//0--leader, 1--follower, 2---ca
     int max_log_id;
     string storage_path;
-    void *storage;
+    Storage *storage;
     stack<task_t *> *g_readwrite_task;
 
 public:
     MultiPaxos() {}
     virtual ~MultiPaxos() {}
-    int syncPropose(void **pPaxosData);
+    int syncPropose(void **pPaxosData, Proto::Network::CliReq *cliReq, uint64_t &outLogId);
     int asyncPropose();
     int getValue();
 
@@ -40,6 +43,11 @@ public:
     void workerCoroutine(task_t *pTask);
 
     void acceptCoroutine(task_t *pTask);
+
+    //处理心跳, prepare,选举等
+    void adminWorkerThread();
+
+    uint64_t newProposeId();
 };
 
 class HostInfo {

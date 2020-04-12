@@ -7,6 +7,7 @@
 #include <co_routine.h>
 #include <co_routine_inner.h>
 #include <netinet/in.h>
+#include <rpc.pb.h>
 #include "Server.h"
 #include "Network.h"
 #include "Log.h"
@@ -161,12 +162,23 @@ void Server::workerCoroutine(task_t *pTask) {
                 break;
             }
 //            LOG_COUT << LVAR(buf) << LOG_ENDL;
+            Proto::Network::Msg recvMsg;
+            recvMsg.set_msg_type(Proto::Network::MsgType::MSG_Type_Cli_Request);
+
+            Proto::Network::CliReq *cliReq = recvMsg.mutable_cli_request();
+            cliReq->set_group_id(1);
+            cliReq->set_request_type(1);
+            cliReq->set_key("key");
+            cliReq->set_value("value");
+
             int groupId = 1;
+            uint64_t logId = 0;
             auto it = groupIdMultiPaxosMap.find(groupId);
             if (it == groupIdMultiPaxosMap.end()) {
 
             } else {
-                it->second->syncPropose(&pPaxosData);
+                ret = it->second->syncPropose(&pPaxosData, cliReq, logId);
+                LOG_COUT << "syncPropose:"<<LVAR(ret) << LVAR(logId) << LOG_ENDL;
             }
 //            LOG_COUT << LVAR(buf) << LOG_ENDL;
             ret = write( fd, retStr.c_str(), retStr.length());
