@@ -7,6 +7,7 @@
 #include <pb2json.h>
 #include <string>
 #include <unistd.h>
+#include "co_routine.h"
 
 using namespace std;
 
@@ -20,9 +21,22 @@ namespace tpc::Core {
         static int GetHash(string key, int size);
         static int GetCpuCount();
         static int bindThreadCpu(int nCpuIndex);
+
     };
 }
 
+struct task_t
+{
+    stCoRoutine_t *co;
+    int fd;
+    int threadIndex;
+    void *server;
+};
+
+struct ThreadArgs {
+    void *server;
+    int threadIndex;
+};
 
 
 #endif //PROJECT_UTILS_H

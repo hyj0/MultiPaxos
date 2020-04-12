@@ -9,24 +9,13 @@
 #include <map>
 #include <cstdint>
 #include "MultiPaxos.h"
-#include "co_routine.h"
+#include "Utils.h"
 
 using namespace std;
 
 class Server;
 
-struct task_t
-{
-    stCoRoutine_t *co;
-    int fd;
-    int threadIndex;
-    Server *server;
-};
 
-struct ThreadArgs {
-    Server *server;
-    int threadIndex;
-};
 
 class Server {
 private:

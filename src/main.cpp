@@ -23,11 +23,13 @@ void testConfig() {
     paxosGroup->set_group_id(1);
     Proto::Config::HostId *hostId = paxosGroup->add_hostids();
     hostId->set_host_id(1);
-    hostId->set_host_str("127.0.0.1:8901");
+    hostId->set_host_ip("127.0.0.1");
+    hostId->set_host_port(8901);
 
     hostId = paxosGroup->add_hostids();
     hostId->set_host_id(2);
-    hostId->set_host_str("127.0.0.1:8902");
+    hostId->set_host_ip("127.0.0.1");
+    hostId->set_host_port(8902);
 
     paxosGroup->set_storage_dir("data1");
 
@@ -43,6 +45,8 @@ int main(int argc, char **argv) {
         LOG_COUT << "usage:main host_id" << LOG_ENDL;
         return -1;
     }
+    int host_id = atoi(argv[1]);
+    LOG_COUT << LVAR(host_id) << LOG_ENDL;
 //    testConfig();
     string configStr = tpc::Core::Utils::ReadWholeFile("config.json");
     if (configStr.empty()) {
@@ -72,7 +76,8 @@ int main(int argc, char **argv) {
     MultiPaxos *pMultiPaxos[serverConfig.groups_size()];
     for (int i = 0; i < serverConfig.groups_size(); ++i) {
         LOG_COUT << LVAR(serverConfig.groups(i).group_id()) << LOG_ENDL;
-        pMultiPaxos[i] = new MultiPaxos(serverConfig.groups(i));
+        pMultiPaxos[i] = new MultiPaxos(serverConfig.groups(i), host_id);
+        pMultiPaxos[i]->start();
         server.addMultiPaxos(serverConfig.groups(i).group_id(), pMultiPaxos[i]);
     }
     signal(SIGTERM, sigHander);

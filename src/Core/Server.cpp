@@ -8,7 +8,6 @@
 #include <co_routine_inner.h>
 #include <netinet/in.h>
 #include "Server.h"
-#include "Utils.h"
 #include "Network.h"
 #include "Log.h"
 using namespace std;
@@ -24,7 +23,7 @@ void Server::addMultiPaxos(unsigned int group_id, MultiPaxos *pPaxos) {
 
 static void *threadFun(void *args) {
     ThreadArgs *threadArgs = static_cast<ThreadArgs *>(args);
-    threadArgs->server->mainThreadFun(threadArgs->threadIndex);
+    ((Server*)threadArgs->server)->mainThreadFun(threadArgs->threadIndex);
 }
 
 void Server::start() {
@@ -45,14 +44,14 @@ void Server::start() {
     }
 }
 
-void *__WorkerCoroutine(void *args) {
+static void *__WorkerCoroutine(void *args) {
     task_t *task = static_cast<task_t *>(args);
-    task->server->workerCoroutine(task);
+    ((Server*)task->server)->workerCoroutine(task);
 }
 
 static void *__AcceptCoroutine(void *args) {
     task_t *task = static_cast<task_t *>(args);
-    task->server->acceptCoroutine(task);
+    ((Server*)task->server)->acceptCoroutine(task);
 }
 
 void Server::mainThreadFun(int threadIndex) {
@@ -73,8 +72,6 @@ void Server::mainThreadFun(int threadIndex) {
     co_create(&ctx, NULL, __AcceptCoroutine, task);
     co_resume(ctx);
 
-//    co_create(&ctx, NULL, KVWriteLogCoroutine, &threadIndex);
-//    co_resume(ctx);
     tpc::Core::Utils::bindThreadCpu(threadIndex);
     co_eventloop(co_get_epoll_ct(), NULL, NULL);
 }
@@ -141,6 +138,7 @@ void Server::workerCoroutine(task_t *pTask) {
                      "Connection: Keep-Alive\r\n"
                      "Content-Type: text/html\r\n\r\n%08d";
     char buf[1024];
+    void *pPaxosData = NULL;
     for(;;) {
         if (-1 == pTask->fd) {
             g_readwrite.push(pTask);
@@ -162,12 +160,13 @@ void Server::workerCoroutine(task_t *pTask) {
 //                LOG_COUT << "read err " << LVAR(ret) << LOG_ENDL_ERR;
                 break;
             }
+//            LOG_COUT << LVAR(buf) << LOG_ENDL;
             int groupId = 1;
             auto it = groupIdMultiPaxosMap.find(groupId);
             if (it == groupIdMultiPaxosMap.end()) {
 
             } else {
-//                it->second->syncPropose();
+                it->second->syncPropose(&pPaxosData);
             }
 //            LOG_COUT << LVAR(buf) << LOG_ENDL;
             ret = write( fd, retStr.c_str(), retStr.length());

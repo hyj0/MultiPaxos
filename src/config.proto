@@ -3,7 +3,9 @@ package Proto.Config;
 
 message HostId {
     required uint32 host_id = 1;
-    required string host_str = 2; //host:port
+    required string host_ip = 2; //ip
+    required uint32 host_port = 3; //port
+
 }
 
 message PaxosGroup {

@@ -108,5 +108,6 @@ int tpc::Core::Network::Connect(string host, int port) {
         close(fd);
         return ret;
     }
+    SetNonBlock(fd);
     return fd;
 }
