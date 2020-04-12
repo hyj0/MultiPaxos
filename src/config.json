@@ -1,0 +1,23 @@
+{
+  "groups": [
+    {
+      "group_id": 1,
+      "hostids": [
+        {
+          "host_id": 1,
+          "host_str": "127.0.0.1:8901"
+        },
+        {
+          "host_id": 2,
+          "host_str": "127.0.0.1:8902"
+        },
+        {
+          "host_id": 3,
+          "host_str": "127.0.0.1:8903"
+        }
+      ],
+      "storage_dir": "data1"
+    }
+  ],
+  "server_port": 9901
+}

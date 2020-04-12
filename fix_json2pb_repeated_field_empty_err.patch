@@ -1,0 +1,16 @@
+Index: byReflection/pb2json.cpp
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>GBK
+===================================================================
+--- byReflection/pb2json.cpp	(revision 27fa59a15414cd76a55eb66ef65b080f39837cca)
++++ byReflection/pb2json.cpp	(date 1575902940034)
+@@ -104,7 +104,7 @@
+ 
+ bool Pb2Json::Json2RepeatedMessage(const Json& json, ProtobufMsg& message, const ProtobufFieldDescriptor* field,
+                                    const ProtobufReflection* reflection, bool str2enum) {
+-    int count = json.count(field->name());
++    int count = json.size();
+     for (auto j = 0; j < count; ++j) {
+         switch (field->type()) {
+             case ProtobufFieldDescriptor::TYPE_BOOL: {

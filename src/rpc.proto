@@ -1,0 +1,68 @@
+syntax="proto2";
+package Proto.Network;
+
+message PrepareReq {
+    optional uint32 group_id = 1;
+    optional uint64 log_id = 2;
+    optional uint64 proposal_id = 3;
+    optional string from_node = 4;//发送端
+};
+
+message PrepareRes {
+    optional uint32 result = 1;//0--success, 1--请求的proposal_id小于当前id
+    optional string err_msg = 2;//
+    optional uint64 ret_proposal_id = 3; //本地最大的proposal_id
+    optional string accept_value = 4; //本地最大的proposal_id对应的数据
+};
+
+message AcceptReq {
+    optional uint32 group_id = 1;
+    optional uint64 log_id = 2;
+    optional uint64 proposal_id = 3;
+    optional string from_node = 4;//发送端
+    optional string accept_value = 5; //数据
+}
+
+message AcceptRes {
+    optional uint32 result = 1;//0--success, 1--请求的proposal_id小于当前id
+    optional string err_msg = 2;//
+    optional uint64 ret_proposal_id = 3; //本地最大的proposal_id
+    optional string accept_value = 4; //本地最大的proposal_id对应的数据
+}
+
+message CliReq {
+    optional uint32 group_id = 1;
+    optional uint32 request_type = 2;//1--add entry, 2--get entry,
+    optional string key = 3;
+    optional string value = 4;
+}
+
+message CliRes {
+    optional uint32 result = 1;//0--success, 1--state err, else--err
+    optional string err_msg = 2;//
+    optional uint32 state = 3;// 1--leader 2--follower, 3--candidater
+    optional string leader_id = 4;
+    optional uint64 log_id = 5;
+}
+
+enum MsgType {
+    MSG_Type_Prepare_Request = 1;
+    MSG_Type_Prepare_Response = 2;
+    MSG_Type_Accept_Request = 3;
+    MSG_Type_Accept_Response = 4;
+    MSG_Type_Cli_Request = 5;
+    MSG_Type_Cli_Response = 6;
+};
+
+message Msg {
+    optional string group_id = 1;
+    optional MsgType msg_type = 2;
+    oneof MsgContent{
+        PrepareReq prepare_request = 3;
+        PrepareRes prepare_response = 4;
+        AcceptReq accept_request = 5;
+        AcceptRes accept_response = 6;
+        CliReq cli_request = 7;
+        CliRes cli_response = 8;
+    }
+};

@@ -1,0 +1,18 @@
+syntax="proto2";
+package Proto.Config;
+
+message HostId {
+    required uint32 host_id = 1;
+    required string host_str = 2; //host:port
+}
+
+message PaxosGroup {
+    required uint32 group_id = 1;
+    repeated HostId hostids = 2; //
+    optional string storage_dir = 4;
+}
+
+message ServerConfig {
+    repeated PaxosGroup groups = 1;
+    required uint32 server_port = 2;//ÒµÎñ¶Ë¿Ú
+};

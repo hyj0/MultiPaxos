@@ -1,0 +1,15 @@
+syntax="proto2";
+package Proto.Storage;
+
+message LogEntry {
+    required string action = 1;// change, delete
+    required string key = 2;
+    required string value = 3;
+}
+
+message Log {
+    required uint32 log_index = 1;
+    required uint32 proposal_id = 2;
+    required uint32 type = 3;//0--log,  1--startworking,
+    repeated LogEntry log_entry = 4;
+}
