@@ -1,4 +1,5 @@
 syntax="proto2";
+import "storage.proto";
 package Proto.Network;
 
 message PrepareReq {
@@ -12,7 +13,7 @@ message PrepareRes {
     optional uint32 result = 1;//0--success, 1--请求的proposal_id小于当前id
     optional string err_msg = 2;//
     optional uint64 ret_proposal_id = 3; //本地最大的proposal_id
-    optional string accept_value = 4; //本地最大的proposal_id对应的数据
+    optional Proto.Storage.Log log = 4; //本地最大的proposal_id对应的数据
 };
 
 message AcceptReq {
@@ -20,19 +21,19 @@ message AcceptReq {
     optional uint64 log_id = 2;
     optional uint64 proposal_id = 3;
     optional string from_node = 4;//发送端
-    optional string accept_value = 5; //数据
+    optional Proto.Storage.Log log  = 5; //数据
 }
 
 message AcceptRes {
     optional uint32 result = 1;//0--success, 1--请求的proposal_id小于当前id
     optional string err_msg = 2;//
     optional uint64 ret_proposal_id = 3; //本地最大的proposal_id
-    optional string accept_value = 4; //本地最大的proposal_id对应的数据
+    optional Proto.Storage.Log log = 4; //本地最大的proposal_id对应的数据
 }
 
 message CliReq {
     optional uint32 group_id = 1;
-    optional uint32 request_type = 2;//1--add entry, 2--get entry,
+    optional uint32 request_type = 2;//1--get entry, 2--change, 3--delete
     optional string key = 3;
     optional string value = 4;
 }

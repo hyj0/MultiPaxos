@@ -1,15 +1,33 @@
 syntax="proto2";
 package Proto.Storage;
 
+enum LogType {
+    LOG_Type_empty = 0;
+    LOG_Type_logdata = 1;
+    LOG_Type_start_working = 2;
+    LOG_Type_member_change = 3;
+    LOG_Type_raw_data = 4;
+};
+
 message LogEntry {
-    required uint32 action = 1;// change, delete
+    required uint32 action = 1;// 2--change, 3--delete
     required string key = 2;
     required string value = 3;
+}
+
+message LogData {
+  repeated LogEntry log_entry = 1;
 }
 
 message Log {
     required uint64 log_index = 1;
     required uint64 proposal_id = 2;
-    required uint32 type = 3;//0--log,  1--startworking,
-    repeated LogEntry log_entry = 4;
+    required LogType data_type = 3;//0--没有数据,  1--log数据, 2--start working, 3--成员变更, 4--raw data
+    oneof DataContent {
+        LogData log_data = 4;
+        string start_work = 5;
+        string member_change = 6;
+        string raw_data = 7;
+    }
+    required uint64 max_proposal_id = 8;
 }
