@@ -15,19 +15,20 @@ message LogEntry {
     required string value = 3;
 }
 
-message LogData {
-  repeated LogEntry log_entry = 1;
+message ValueData {
+    optional uint64 value_id = 1;//数据id, 表示DataContent的唯一性,使用proposal_id
+    required LogType data_type = 2;//0--没有数据,  1--log_entry数据, 2--start working, 3--成员变更, 4--raw data
+    oneof DataContent {
+        string start_work = 3;
+        string member_change = 4;
+        string raw_data = 5;
+    }
+    repeated LogEntry log_entry = 6; //LogEntry
 }
 
 message Log {
     required uint64 log_index = 1;
-    required uint64 proposal_id = 2;
-    required LogType data_type = 3;//0--没有数据,  1--log数据, 2--start working, 3--成员变更, 4--raw data
-    oneof DataContent {
-        LogData log_data = 4;
-        string start_work = 5;
-        string member_change = 6;
-        string raw_data = 7;
-    }
-    required uint64 max_proposal_id = 8;
+    required uint64 max_proposal_id = 2; //MaxN
+    required uint64 proposal_id = 3; //AcceptN
+    optional ValueData value_data = 4; //valueN AcceptV
 }

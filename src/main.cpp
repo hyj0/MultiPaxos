@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
         pMultiPaxos[i]->start();
         server.addMultiPaxos(serverConfig.groups(i).group_id(), pMultiPaxos[i]);
     }
-    signal(SIGTERM, sigHander);
+//    signal(SIGTERM, sigHander);
     //loop
     server.start();
 

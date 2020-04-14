@@ -30,6 +30,10 @@ private:
 public:
     MultiPaxos() {}
     virtual ~MultiPaxos() {}
+    //同步Propose
+    //返回 0--成功,
+    //写本条日志  -11--未知, -12--明确的失败
+    //已被其他日志占用  -20--同步其他日志成功, -21--同步已存在的日志结果未知 -22---明确的失败
     int syncPropose(void **pPaxosData, Proto::Network::CliReq *cliReq, uint64_t &outLogId);
     int asyncPropose();
     int getValue();
@@ -56,6 +60,7 @@ public:
     string ip;
     uint32_t port;
     int fd;
+    int groupIndex;//
 };
 
 class PaxosProposeHandler {
@@ -64,6 +69,53 @@ public:
     int groupVersion;//版本号
     map<uint32_t , HostInfo> mapHostInfo; //hostid-->HostInfo
     int updateHostInfo();
+};
+
+class HostLogInfo {
+public:
+    Proto::Storage::ValueData *valueDataArr;
+    int *dealFlagArr; // -1---失败 0--未处理, 1--已处理
+    int size = 0;
+    uint64_t maxMajorityValueId = 0;
+    int maxMajorityCount = 0;
+
+    HostLogInfo(int size) {
+        this->size = size;
+        valueDataArr = new Proto::Storage::ValueData[size];
+        dealFlagArr = new int[size];
+        setDealFlagAll(0);
+    }
+    void setDealFlagAll(int n) {
+        for (int i = 0; i < size; ++i) {
+            dealFlagArr[i] = n;
+        }
+    }
+    ~HostLogInfo() {
+        delete[](valueDataArr);
+        delete[](dealFlagArr);
+    }
+    int calcMajority() {
+        map<uint64_t , int> mapValueCount;
+        for (int k = 0; k < size; ++k) {
+            if (valueDataArr[k].value_id() == 0) {
+                continue;
+            }
+            auto it = mapValueCount.find(valueDataArr[k].value_id());
+            if (it == mapValueCount.end()) {
+                mapValueCount.insert(make_pair(valueDataArr[k].value_id(), 1));
+            } else {
+                it->second += 1;
+            }
+        }
+        auto it = mapValueCount.begin();
+        for (; it != mapValueCount.end(); ++it) {
+            if (maxMajorityCount < it->second) {
+                maxMajorityCount = it->second;
+                maxMajorityValueId = it->first;
+            }
+        }
+        return maxMajorityCount;
+    }
 };
 
 

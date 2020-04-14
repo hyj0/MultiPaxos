@@ -140,6 +140,7 @@ int tpc::Core::Network::SendMsg(int fd, Proto::Network::Msg &msg) {
         LOG_COUT << "SendBuff err ret=" << ret << LOG_ENDL_ERR;
         return ret;
     }
+    LOG_COUT << LVAR(tpc::Core::Utils::Msg2JsonStr(msg)) << LOG_ENDL;
     return 0;
 
 }
@@ -169,5 +170,6 @@ int tpc::Core::Network::ReadOneMsg(int fd, Proto::Network::Msg &msg) {
         return ret;
     }
 #endif
+    LOG_COUT << LVAR(tpc::Core::Utils::Msg2JsonStr(msg)) << LOG_ENDL;
     return msg.msg_type();
 }
